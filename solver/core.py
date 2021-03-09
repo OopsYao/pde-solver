@@ -63,6 +63,8 @@ class Solver:
             return integrate.quad(self.rho0, a, upper)[0]
 
         unfulfill = np.full_like(Omega, True, dtype=bool)
+        Omega[0], Omega[-1] = a, b
+        unfulfill[0], unfulfill[-1] = False, False
         while unfulfill.any():
             # Correction
             invalid = (Omega <= a) | (b <= Omega)
@@ -72,7 +74,6 @@ class Solver:
                      Omega_tilde[unfulfill]) / self.rho0(Omega[unfulfill])
             Omega[unfulfill] += inc
             unfulfill[unfulfill] = (np.abs(inc) >= 10e-8)
-        Omega[0], Omega[-1] = a, b
         return Omega
 
     def step(self, a, b, dt):
