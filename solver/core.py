@@ -29,6 +29,10 @@ class Solver:
         rho = self.recover(Phi)
         E = np.trapz(self.U(rho), Phi)
         E += np.trapz(self.V(Phi) * rho, Phi)
+
+        mask = ~np.eye(self.N, dtype=bool)
+        Phi_ij = np.expand_dims(Phi, -1) - Phi
+        E += self.W(Phi_ij[mask]).sum() * self.dx ** 2 / 2
         return E
 
     def Psi(self, x): return x * self.U(1 / x)
@@ -67,7 +71,7 @@ class Solver:
         unfulfill[0], unfulfill[-1] = False, False
         while unfulfill.any():
             # Correction
-            invalid = (Omega <= a) | (b <= Omega)
+            invalid = (Omega < a) | (b < Omega)
             Omega[invalid] = np.random.uniform(a, b, invalid.sum())
             # Increment (where unfulfilled)
             inc = - (Rho0(Omega[unfulfill]) -
@@ -83,18 +87,19 @@ class Solver:
         # Every time step
 
         # Some utils
-        PN = (np.diag(-np.ones(self.N)) + np.diag(np.ones(self.N - 1), 1))[:-1] / self.dx
+        PN = (np.diag(-np.ones(self.N)) +
+              np.diag(np.ones(self.N - 1), 1))[:-1] / self.dx
 
         def Pn(y):
             return (y[1:] - y[:-1]) / self.dx
         while True:
             Phi_n = Phi.copy()  # Given Phi_n, find Phi_n+1
             # Boundary points of Phi (support boundary of rho)
-            v = -(self.U_p(0) - self.U_p(2 * self.dx / (Phi[-1] - Phi[-3]))
-                  ) / (Phi[-1] - Phi[-2]) - self.V_p(Phi[-1])
+            v = -(self.U_p(0) - self.U_p(2 * self.dx / (Phi[-1] - Phi[-3]))) / (Phi[-1] - Phi[-2]) - self.V_p(
+                Phi[-1]) - np.trapz([0, *(self.W_p(Phi[-1] - Phi[1:-1]) / (Phi[2:] - Phi[:-2]) * 2 * self.dx), 0], Phi)
             right = Phi[-1] + v * dt
-            v = -(self.U_p(0) - self.U_p(2 * self.dx / (Phi[2] - Phi[0]))
-                  ) / (Phi[0] - Phi[1]) - self.V_p(Phi[0])
+            v = -(self.U_p(0) - self.U_p(2 * self.dx / (Phi[2] - Phi[0]))) / (Phi[0] - Phi[1]) - self.V_p(
+                Phi[0]) - np.trapz([0, *(self.W_p(Phi[0] - Phi[1:-1]) / (Phi[2:] - Phi[:-2]) * 2 * self.dx), 0], Phi)
             left = Phi[0] + v * dt
             # Interior points of Phi
             Phi[0], Phi[-1] = left, right
@@ -111,6 +116,16 @@ class Solver:
 
                 F = F + self.V_p(Phi[1:-1])
                 F_p = F_p + np.diag(self.V_pp(Phi[1:-1]))
+
+                # Phi_ij[i][j] = Phi[i] - Phi[j]
+                Phi_ij = np.expand_dims(Phi[1:-1], -1) - Phi[1:-1]
+                mask = ~np.eye(self.N - 2, dtype=bool)
+                Wp = np.zeros_like(Phi_ij)
+                Wpp = np.zeros_like(Phi_ij)
+                Wp[mask] = self.W_p(Phi_ij[mask])
+                Wpp[mask] = self.W_pp(Phi_ij[mask])
+                F = F + Wp.sum(axis=1) * self.dx
+                F_p = F_p + (np.diag(Wpp.sum(axis=1)) - Wpp) * self.dx
 
                 inc = np.linalg.solve(F_p, -F)
                 Phi = Phi + [0, *inc, 0]
