@@ -39,11 +39,19 @@ class Solver:
 
     def Psi_p(self, x):
         inv = 1 / x
-        return self.U(inv) - inv * self.U_p(inv)
+        mask = inv != 0
+        invm = np.array(inv)[mask]
+        r = np.zeros_like(x)
+        r[mask] = self.U(invm) - invm * self.U_p(invm)
+        return r
 
     def Psi_pp(self, x):
         inv = 1 / x
-        return inv ** 3 * self.U_pp(inv)
+        mask = inv != 0
+        invm = np.array(inv)[mask]
+        r = np.zeros_like(x)
+        r[mask] = invm ** 3 * self.U_pp(invm)
+        return r
 
     def _init_diffeo(self, a, b):
         # Omega_tilde := [0, M] (equidistant)
@@ -95,11 +103,18 @@ class Solver:
         while True:
             Phi_n = Phi.copy()  # Given Phi_n, find Phi_n+1
             # Boundary points of Phi (support boundary of rho)
-            v = -(self.U_p(0) - self.U_p(2 * self.dx / (Phi[-1] - Phi[-3]))) / (Phi[-1] - Phi[-2]) - self.V_p(
-                Phi[-1]) - np.trapz([0, *(self.W_p(Phi[-1] - Phi[1:-1]) / (Phi[2:] - Phi[:-2]) * 2 * self.dx), 0], Phi)
+            lmd = 1 / 3
+            v = -(self.U_p(2 * lmd * self.dx / (Phi[-1] - Phi[-3]))
+                  - self.U_p(2 * self.dx / (Phi[-1] - Phi[-3]))) / (Phi[-1] - Phi[-2])
+            v = v - self.V_p(Phi[-1])
+            v = v - np.trapz([0, *(self.W_p(Phi[-1] - Phi[1:-1]) /
+                                   (Phi[2:] - Phi[:-2]) * 2 * self.dx), 0], Phi)
             right = Phi[-1] + v * dt
-            v = -(self.U_p(0) - self.U_p(2 * self.dx / (Phi[2] - Phi[0]))) / (Phi[0] - Phi[1]) - self.V_p(
-                Phi[0]) - np.trapz([0, *(self.W_p(Phi[0] - Phi[1:-1]) / (Phi[2:] - Phi[:-2]) * 2 * self.dx), 0], Phi)
+            v = -(self.U_p(2 * self.dx / (Phi[2] - Phi[0]))
+                   - self.U_p(2 * lmd * self.dx / (Phi[2] - Phi[0]))) / (Phi[1] - Phi[0])
+            v = v - self.V_p(Phi[0])
+            v = v - np.trapz([0, *(self.W_p(Phi[0] - Phi[1:-1]) /
+                                   (Phi[2:] - Phi[:-2]) * 2 * self.dx), 0], Phi)
             left = Phi[0] + v * dt
             # Interior points of Phi
             Phi[0], Phi[-1] = left, right
