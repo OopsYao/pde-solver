@@ -60,13 +60,18 @@ t_arr = dt * np.arange(0, 9718)
 en = np.zeros_like(t_arr)
 
 x = np.linspace(a, b, N)
-plt.plot(x, rho0(x), label=r'init')
+plt.plot(x, rho0(x), label=r'Initial $\rho_0$')
 for i, (t, Phi) in enumerate(zip(tqdm(t_arr), solver.step(a, b, dt))):
     en[i] = solver.entropy(Phi)
-    if i in [0, len(t_arr) - 1]:
-        plt.plot(Phi, solver.recover(Phi), label=f't={t}')
-plt.plot(x, rho_inff(x), label=r'inf')
+    if i in [len(t_arr) - 1]:
+        plt.plot(Phi, solver.recover(Phi), 'x-', label=f'Computed results')
+plt.plot(x, rho_inff(x), label=r'Real value $\rho_\infty$')
 plt.legend()
+
 plt.figure()
 plt.plot(t_arr, en - Einf)
+plt.yscale('log')
+plt.xlabel('t')
+plt.ylabel(r'$E(\rho)-E(\rho_\infty)$')
+plt.legend()
 plt.show()

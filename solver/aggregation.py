@@ -56,15 +56,15 @@ def W_pp(x): return (a - 1) * np.abs(x) ** (a - 2) - \
 
 
 solver = Solver(rho0, N, U, U_p, U_pp, V, V_p, V_pp, W, W_p, W_pp)
-t_arr = dt * np.arange(4892)
+t_arr = dt * np.arange(4891)
 en = np.zeros_like(t_arr)
-x = np.linspace(-6, 6, N)
-plt.plot(x, rho0(x), label='init')
-plt.plot(x, rho_inf(x), label='inf')
+x = np.linspace(-3, 3, N)
+plt.plot(x, rho0(x), label=r'Initial $\rho_0$')
 for i, (t, Phi) in enumerate(zip(tqdm(t_arr), solver.step(-6, 6, dt))):
-    if i in [0, len(t_arr) - 1]:
-        plt.plot(Phi, solver.recover(Phi), label=f't={t}')
+    if i in [len(t_arr) - 1]:
+        plt.plot(Phi, solver.recover(Phi), 'x-', label=r'Computed solution')
     en[i] = solver.entropy(Phi)
+plt.plot(x, rho_inf(x), label=r'Real value $\rho_\infty$')
 plt.legend()
 
 xy = np.expand_dims(x, -1) - x
@@ -75,6 +75,9 @@ rho_x = rho_inf(x)
 E_inf = (Wxy * np.expand_dims(rho_x, -1) * rho_x).sum() * (12 / N) ** 2 / 2
 plt.figure()
 plt.yscale('log')
-plt.plot(t_arr, en - E_inf, label='entropy')
-plt.plot(t_arr, np.exp(-3 * t_arr), label='expected decay')
+plt.xlabel('t')
+plt.ylabel(r'$E(\rho)$')
+plt.plot(t_arr, en, label='Entropy')
+# plt.plot(t_arr, np.exp(-7.5 * t_arr), label='Expected decay')
+# plt.legend()
 plt.show()
