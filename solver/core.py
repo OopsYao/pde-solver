@@ -1,6 +1,7 @@
 import numpy as np
 from tqdm import tqdm
 from scipy import integrate
+import itertools
 
 
 class Solver:
@@ -88,9 +89,17 @@ class Solver:
             unfulfill[unfulfill] = (np.abs(inc) >= 10e-8)
         return Omega
 
-    def step(self, a, b, dt):
-        Phi = self._init_diffeo(a, b)
-        yield Phi
+    def step(self, a, b, dt, Phi0=None):
+        if type(Phi0) == type(None):
+            Phi = self._init_diffeo(a, b)
+            yield Phi
+        else:
+            Phi = Phi0
+
+        if isinstance(dt, (int, float)):
+            dt_iter = iter(lambda: dt, 1)
+        else:
+            dt_iter = iter(dt)
 
         # Every time step
 
@@ -101,9 +110,14 @@ class Solver:
         def Pn(y):
             return (y[1:] - y[:-1]) / self.dx
         while True:
+            try:
+                dt = next(dt_iter)
+            except StopIteration:
+                pass
+
             Phi_n = Phi.copy()  # Given Phi_n, find Phi_n+1
             # Boundary points of Phi (support boundary of rho)
-            lmd = 1 / 3
+            lmd = 1 / 2
             v = -(self.U_p(2 * lmd * self.dx / (Phi[-1] - Phi[-3]))
                   - self.U_p(2 * self.dx / (Phi[-1] - Phi[-3]))) / (Phi[-1] - Phi[-2])
             v = v - self.V_p(Phi[-1])
@@ -111,7 +125,7 @@ class Solver:
                                    (Phi[2:] - Phi[:-2]) * 2 * self.dx), 0], Phi)
             right = Phi[-1] + v * dt
             v = -(self.U_p(2 * self.dx / (Phi[2] - Phi[0]))
-                   - self.U_p(2 * lmd * self.dx / (Phi[2] - Phi[0]))) / (Phi[1] - Phi[0])
+                  - self.U_p(2 * lmd * self.dx / (Phi[2] - Phi[0]))) / (Phi[1] - Phi[0])
             v = v - self.V_p(Phi[0])
             v = v - np.trapz([0, *(self.W_p(Phi[0] - Phi[1:-1]) /
                                    (Phi[2:] - Phi[:-2]) * 2 * self.dx), 0], Phi)
