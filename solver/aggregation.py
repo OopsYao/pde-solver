@@ -3,6 +3,7 @@ from .core import Solver
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from scipy.integrate import quad, dblquad
+from .utils import save_tikz
 
 # Parameters
 a = 2
@@ -55,29 +56,73 @@ def W_pp(x): return (a - 1) * np.abs(x) ** (a - 2) - \
     (b - 1) * np.abs(x) ** (b - 2)
 
 
+tilde_Omega = np.linspace(0, M, N)
+
+
+def plot_Phi(Phi, *args, **kwargs):
+    plt.figure('Phi')
+    plt.plot(tilde_Omega, Phi, *args, **kwargs)
+
+
+def plot_rho(Phi, *args, **kwargs):
+    plt.figure('rho')
+    plt.plot(Phi, solver.recover(Phi), *args, **kwargs)
+
+
 solver = Solver(rho0, N, U, U_p, U_pp, V, V_p, V_pp, W, W_p, W_pp)
-t_arr = dt * np.arange(4891)
+t_arr = dt * np.arange(4892)
+Phi_arr = np.empty((len(t_arr), N))
 en = np.zeros_like(t_arr)
 x = np.linspace(-3, 3, N)
-plt.plot(x, rho0(x), label=r'Initial $\rho_0$')
-for i, (t, Phi) in enumerate(zip(tqdm(t_arr), solver.step(-6, 6, dt))):
-    if i in [len(t_arr) - 1]:
-        plt.plot(Phi, solver.recover(Phi), 'x-', label=r'Computed solution')
-    en[i] = solver.entropy(Phi)
-plt.plot(x, rho_inf(x), label=r'Real value $\rho_\infty$')
-plt.legend()
+try:
+    Phi_arr = np.load(f'aggregation-b={b}.npy')
+except:
+    for i, (t, Phi) in enumerate(zip(tqdm(t_arr), solver.step(-2, 2, dt))):
+        Phi_arr[i] = Phi
+    np.save(f'aggregation-b={b}.npy', Phi_arr)
 
-xy = np.expand_dims(x, -1) - x
-mask = ~np.eye(N, dtype=bool)
-Wxy = np.zeros_like(xy)
-Wxy[mask] = W(xy[mask])
-rho_x = rho_inf(x)
-E_inf = (Wxy * np.expand_dims(rho_x, -1) * rho_x).sum() * (12 / N) ** 2 / 2
-plt.figure()
-plt.yscale('log')
-plt.xlabel('t')
-plt.ylabel(r'$E(\rho)$')
-plt.plot(t_arr, en, label='Entropy')
+plt.figure('rho')
+plt.plot(x, rho0(x), '--', label=r'初始密度$\rho_0$')
+plt.figure('Phi')
+plt.plot(tilde_Omega, Phi_arr[0], '--', label='$t=0$')
+for i in [800]:
+    t = rf'$t={t_arr[i]:.3f}$'
+    plot_rho(Phi_arr[i], '-.', label=t)
+    plot_Phi(Phi_arr[i], '-.', label=t)
+plt.figure('rho')
+idx = np.arange(3, N - 3, 20)
+idx = [*np.arange(3), *idx, *np.arange(N - 3, N)]
+# plt.plot([Phi_arr[-1, 0], *(Phi_arr[-1, 2:-2:10]), Phi_arr[-1, -1]],
+#          [0, *solver.recover(Phi_arr[-1])[2:-2:10], 0],
+#          'x-', label=rf'$t={t_arr[2412]:.3f}$')
+plt.plot(Phi_arr[-1][idx], solver.recover(Phi_arr[-1])[idx], 'x-', label='$t=4.890$')
+plt.plot(x, rho_inf(x), label=r'稳态解')
+plt.figure('Phi')
+plt.plot(tilde_Omega, Phi_arr[-1], label=rf'$t={t_arr[-1]:.3f}$')
+
+# en[i] = solver.entropy(Phi)
+# xy = np.expand_dims(x, -1) - x
+# mask = ~np.eye(N, dtype=bool)
+# Wxy = np.zeros_like(xy)
+# Wxy[mask] = W(xy[mask])
+# rho_x = rho_inf(x)
+# E_inf = (Wxy * np.expand_dims(rho_x, -1) * rho_x).sum() * (12 / N) ** 2 / 2
+# plt.figure('ent')
+# plt.yscale('log')
+# plt.xlabel('t')
+# plt.ylabel(r'$E(\rho)$')
+# plt.plot(t_arr, en, label='Entropy')
 # plt.plot(t_arr, np.exp(-7.5 * t_arr), label='Expected decay')
 # plt.legend()
+
+plt.figure('rho')
+plt.xlabel(r'$x$')
+plt.legend()
+save_tikz(f'aggregation-b={b}-rho.tikz')
+
+plt.figure('Phi')
+plt.xlabel(r'$\tilde x$')
+plt.legend()
+save_tikz(f'aggregation-b={b}-Phi.tikz')
+
 plt.show()

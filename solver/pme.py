@@ -4,9 +4,12 @@ from scipy.optimize import newton
 from scipy.integrate import quad
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from .utils import save_tikz
+
+plt.style.use("seaborn-deep")
 
 # Parameters
-m = 4
+m = 2
 t0 = 1e-3
 alpha = 1 / (m + 1)
 dt = 1e-5
@@ -44,24 +47,48 @@ def V_pp(x): return np.zeros_like(x)
 def W_pp(x): return np.zeros_like(x)
 
 
+Phi_set = np.empty((2001, N))
 solver = Solver(rho0, N, U, U_p, U_pp, V, V_p, V_pp, W, W_p, W_pp)
 t_arr = dt * np.arange(t0 / dt, 2101)
 x = np.linspace(-1, 1, N)
 en = np.zeros_like(t_arr)
-plt.plot(x, rho0(x), label='Initial value')
-for i, (t, Phi) in enumerate(zip(tqdm(t_arr), solver.step(-s0, s0, dt))):
-    if i in [len(t_arr) - 1]:
-        plt.plot(Phi, solver.recover(Phi), 'x-', label='Computed solution')
+plt.plot(x, rho0(x), '--', label=r'初始密度$\rho_0$')
+
+try:
+    Phi_set = np.load(f'pme-m={m}.npy')
+except:
+    for i, (t, Phi) in enumerate(zip(tqdm(t_arr), solver.step(-s0, s0, dt))):
+        Phi_set[i] = Phi
+    np.save(f'pme-m={m}.npy', Phi_set)
+for i, Phi in enumerate(Phi_set):
     en[i] = solver.entropy(Phi)
-plt.plot(x, bpp(x, t_arr[-1]), label=f'BPP at t={t_arr[-1]}')
+plt.plot(x, bpp(x, t_arr[-1]), label=rf'$t={t_arr[-1]}$时的真实解')
+plt.plot(Phi_set[1000], solver.recover(Phi_set[1000]), '-.', label=rf'$t={t_arr[1000]:.3f}$')
+
+idx = np.arange(5, N - 5, 10)
+idx = [*np.arange(5), *idx, *np.arange(N - 5, N)]
+plt.plot(Phi_set[2000][idx], solver.recover(Phi_set[2000])[idx], 'x-', label=rf'$t={t_arr[2000]:.3f}$')
+# plt.plot(Phi_set[2000], solver.recover(Phi_set[2000]), 'x-', label=rf'$t={t_arr[2000]:.3f}$')
+plt.xlabel(r'$x$')
 plt.legend()
+save_tikz(f'pme-m={m}-rho.tikz')
+
+
+plt.figure()
+plt.plot(np.linspace(0, 2, N), Phi_set[0], '-.', label='$t=0$')
+plt.plot(np.linspace(0, 2, N), Phi_set[1000], '--', label='$t=0.01$')
+plt.plot(np.linspace(0, 2, N), Phi_set[-1], label='$t=0.021$')
+plt.legend()
+plt.xlabel(r'$\eta$')
+save_tikz(f'pme-m={m}-Phi.tikz')
 
 plt.figure()
 plt.xscale('log')
 plt.yscale('log')
-plt.plot(t_arr, en, label="Entropy")
-plt.plot(t_arr, t_arr ** (- alpha * (m - 1)), label="Expected decay")
-plt.xlabel('t')
-plt.ylabel('E')
+plt.plot(t_arr, en, label="熵的变化曲线")
+plt.plot(t_arr, t_arr ** (- alpha * (m - 1)), '--', label="预期衰退速率")
+plt.xlabel('$t$')
+plt.ylabel('$E$')
 plt.legend()
+save_tikz(f'pme-m={m}-ent.tikz')
 plt.show()
