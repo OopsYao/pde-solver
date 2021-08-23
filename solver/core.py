@@ -3,6 +3,42 @@ from tqdm import tqdm
 from scipy import integrate
 import itertools
 
+def rho2Phi(rho, N, a, b):
+    M = integrate.quad(rho, a, b)[0]
+    # Omega_tilde := [0, M] (equidistant)
+    Omega_tilde = np.linspace(0, M, N)
+    # Initial guess of Omega = Phi0(Omega_tilde)
+    Omega = np.linspace(a, b, N)
+    # Loop version
+    # for i, x in enumerate(Omega_tilde):
+    #     while True:
+    #         cur = Omega[i]
+    #         if a < cur < b:
+    #             inc = - (integrate.quad(rho0, a, cur)[0] - x) / rho0(cur)
+    #             Omega[i] += inc
+    #             if abs(inc) < 10e-8:
+    #                 break
+    #         else:
+    #             Omega[i] = np.random.uniform(a, b)
+
+    @np.vectorize
+    def Rho0(upper):
+        return integrate.quad(rho, a, upper)[0]
+
+    unfulfill = np.full_like(Omega, True, dtype=bool)
+    Omega[0], Omega[-1] = a, b
+    unfulfill[0], unfulfill[-1] = False, False
+    while unfulfill.any():
+        # Correction
+        invalid = (Omega < a) | (b < Omega)
+        Omega[invalid] = np.random.uniform(a, b, invalid.sum())
+        # Increment (where unfulfilled)
+        inc = - (Rho0(Omega[unfulfill]) -
+                 Omega_tilde[unfulfill]) / rho(Omega[unfulfill])
+        Omega[unfulfill] += inc
+        unfulfill[unfulfill] = (np.abs(inc) >= 10e-8)
+    return Omega
+
 
 class Solver:
     def __init__(self, rho0, N, U, U_p, U_pp, V, V_p, V_pp, W, W_p, W_pp):
@@ -55,39 +91,7 @@ class Solver:
         return r
 
     def _init_diffeo(self, a, b):
-        # Omega_tilde := [0, M] (equidistant)
-        Omega_tilde = np.linspace(0, self.M, self.N)
-        # Initial guess of Omega = Phi0(Omega_tilde)
-        Omega = np.linspace(a, b, self.N)
-        # Loop version
-        # for i, x in enumerate(Omega_tilde):
-        #     while True:
-        #         cur = Omega[i]
-        #         if a < cur < b:
-        #             inc = - (integrate.quad(rho0, a, cur)[0] - x) / rho0(cur)
-        #             Omega[i] += inc
-        #             if abs(inc) < 10e-8:
-        #                 break
-        #         else:
-        #             Omega[i] = np.random.uniform(a, b)
-
-        @np.vectorize
-        def Rho0(upper):
-            return integrate.quad(self.rho0, a, upper)[0]
-
-        unfulfill = np.full_like(Omega, True, dtype=bool)
-        Omega[0], Omega[-1] = a, b
-        unfulfill[0], unfulfill[-1] = False, False
-        while unfulfill.any():
-            # Correction
-            invalid = (Omega < a) | (b < Omega)
-            Omega[invalid] = np.random.uniform(a, b, invalid.sum())
-            # Increment (where unfulfilled)
-            inc = - (Rho0(Omega[unfulfill]) -
-                     Omega_tilde[unfulfill]) / self.rho0(Omega[unfulfill])
-            Omega[unfulfill] += inc
-            unfulfill[unfulfill] = (np.abs(inc) >= 10e-8)
-        return Omega
+        return rho2Phi(self.rho0, self.N, a, b)
 
     def step(self, a, b, dt, Phi0=None):
         if type(Phi0) == type(None):

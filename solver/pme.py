@@ -1,4 +1,4 @@
-from .core import Solver
+from .core import Solver, rho2Phi
 import numpy as np
 from scipy.optimize import newton
 from scipy.integrate import quad
@@ -17,6 +17,7 @@ N = 501
 
 
 def pp(x): return (x + np.abs(x)) / 2
+
 
 def bpp_c(c, x, t):
     return pp(c - alpha * (m - 1) / 2 / m * x ** 2 / t ** (2 * alpha)) ** (1 / (m - 1)) / t ** alpha
@@ -63,11 +64,13 @@ except:
 for i, Phi in enumerate(Phi_set):
     en[i] = solver.entropy(Phi)
 plt.plot(x, bpp(x, t_arr[-1]), label=rf'$t={t_arr[-1]}$时的真实解')
-plt.plot(Phi_set[1000], solver.recover(Phi_set[1000]), '-.', label=rf'$t={t_arr[1000]:.3f}$')
+plt.plot(Phi_set[1000], solver.recover(Phi_set[1000]),
+         '-.', label=rf'$t={t_arr[1000]:.3f}$')
 
 idx = np.arange(5, N - 5, 10)
 idx = [*np.arange(5), *idx, *np.arange(N - 5, N)]
-plt.plot(Phi_set[2000][idx], solver.recover(Phi_set[2000])[idx], 'x-', label=rf'$t={t_arr[2000]:.3f}$')
+plt.plot(Phi_set[2000][idx], solver.recover(Phi_set[2000])
+         [idx], 'x-', label=rf'$t={t_arr[2000]:.3f}$')
 # plt.plot(Phi_set[2000], solver.recover(Phi_set[2000]), 'x-', label=rf'$t={t_arr[2000]:.3f}$')
 plt.xlabel(r'$x$')
 plt.legend()
@@ -91,4 +94,32 @@ plt.xlabel('$t$')
 plt.ylabel('$E$')
 plt.legend()
 save_tikz(f'pme-m={m}-ent.tikz')
+# plt.show()
+
+# for N in [61, 126, 251, 501]:
+for dt in [8e-4, 4e-5, 2e-5, 1e-5, 0.5e-5]:
+    # print(len(t_arr))
+    def rho(x): return bpp(x, 0.021)
+    Phi_ref = rho2Phi(rho, N, -s0, s0)
+    M = quad(rho, -s0, s0)[0]
+    solver = Solver(rho0, N, U, U_p, U_pp, V, V_p, V_pp, W, W_p, W_pp)
+    Phi_end = None
+    # t_arr = dt * np.arange(t0 / dt, 2101)
+    t_arr = np.linspace(t0, 0.021, int((0.022 - t0) / dt))
+    for i, (t, Phi) in enumerate(zip(tqdm(t_arr), solver.step(-s0, s0, dt))):
+        if abs(t + dt - 0.021) > abs(t - 0.021):
+            # if i == 2000:
+            Phi_end = Phi
+            print(i)
+            break
+    err = ((np.abs(Phi_end - Phi_ref)).sum() * M / N)
+    # plt.plot(np.linspace(0, M, N), Phi_ref, label='ref')
+    # plt.plot(np.linspace(0, M, N), Phi_end, '--', label='end')
+    plt.plot(Phi_end, solver.recover(Phi_end))
+    plt.plot(x, rho(x), '--')
+    # plt.show()
+    print(err)
+
+
+plt.legend()
 plt.show()
